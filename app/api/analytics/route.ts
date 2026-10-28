@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getFinanceUser } from "@/lib/server-user";
+import { getFinanceUserId } from "@/lib/server-user";
 
 const rangeSchema = z.enum(["week", "month", "year"]).default("month");
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const parsedRange = rangeSchema.safeParse(url.searchParams.get("range") ?? "month");
+  if (!parsedRange.success) return NextResponse.json({ error: "Invalid analytics range." }, { status: 400 });
   try {
-    const url = new URL(request.url);
-    const parsedRange = rangeSchema.safeParse(url.searchParams.get("range") ?? "month");
-    if (!parsedRange.success) return NextResponse.json({ error: "Invalid analytics range." }, { status: 400 });
-
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const now = new Date();
     const periodStart = new Date(now);
     if (parsedRange.data === "week") periodStart.setDate(now.getDate() - 6);
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     periodStart.setHours(0, 0, 0, 0);
 
     const currentPeriodTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id, date: { gte: periodStart, lte: now } },
+      where: { userId, date: { gte: periodStart, lte: now } },
       include: { category: { select: { id: true, name: true, color: true } } },
       orderBy: { date: "desc" },
     });
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
     const chartStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     const chartTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id, date: { gte: chartStart, lte: now }, type: "EXPENSE" },
+      where: { userId, date: { gte: periodStart, lte: now }, type: "EXPENSE" },
       include: { category: { select: { id: true, name: true, color: true } } },
     });
     const byCategory = new Map<string, { name: string; value: number; color: string }>();
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     });
     const monthlyByKey = new Map(monthly.map((entry) => [entry.key, entry]));
     const allMonthlyTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id, date: { gte: chartStart, lte: now } },
+      where: { userId, date: { gte: chartStart, lte: now } },
       select: { amount: true, type: true, date: true },
     });
     for (const transaction of allMonthlyTransactions) {
@@ -71,14 +71,14 @@ export async function GET(request: Request) {
     }
 
     const budgets = await prisma.budget.findMany({
-      where: { userId: user.id, period: "MONTHLY" },
+      where: { userId, period: "MONTHLY" },
       include: { category: { select: { id: true, name: true, color: true } } },
       orderBy: { category: { name: "asc" } },
     });
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const budgetSpending = await prisma.transaction.groupBy({
       by: ["categoryId"],
-      where: { userId: user.id, type: "EXPENSE", date: { gte: monthStart, lte: now } },
+      where: { userId, type: "EXPENSE", date: { gte: monthStart, lte: now } },
       _sum: { amount: true },
     });
     const spendingByCategory = new Map(budgetSpending.map((item) => [item.categoryId, Number(item._sum.amount ?? 0)]));

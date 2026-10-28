@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,30 +13,22 @@ export function TransactionDialog({
   open,
   onOpenChange,
   transaction,
+  defaultDate,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: FinanceTransaction;
+  defaultDate: string;
   onSave: (values: TransactionValues) => Promise<void>;
 }) {
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [type, setType] = useState<TransactionType>("EXPENSE");
-  const [category, setCategory] = useState("Food / Cafe");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
+  const [title, setTitle] = useState(transaction?.title ?? "");
+  const [amount, setAmount] = useState(transaction ? String(transaction.amount) : "");
+  const [type, setType] = useState<TransactionType>(transaction?.type ?? "EXPENSE");
+  const [category, setCategory] = useState(transaction?.category ?? "Food / Cafe");
+  const [date, setDate] = useState(transaction?.date.slice(0, 10) ?? defaultDate);
+  const [notes, setNotes] = useState(transaction?.notes ?? "");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(transaction?.title ?? "");
-    setAmount(transaction ? String(transaction.amount) : "");
-    setType(transaction?.type ?? "EXPENSE");
-    setCategory(transaction?.category ?? "Food / Cafe");
-    setDate(transaction?.date.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-    setNotes(transaction?.notes ?? "");
-  }, [open, transaction]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,7 +66,7 @@ export function TransactionDialog({
             <label className="block space-y-1.5 text-xs font-medium text-[#68736b] dark:text-[#b2bbb4]">Date<Input required type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           </div>
           <label className="block space-y-1.5 text-xs font-medium text-[#68736b] dark:text-[#b2bbb4]">Category<select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-[#ddd9d2] bg-white px-3 text-sm text-[#28332d] outline-none focus:border-[#81998b] dark:border-[#35423d] dark:bg-[#19221e] dark:text-[#e7eae6]">{transactionCategories.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label className="block space-y-1.5 text-xs font-medium text-[#68736b] dark:text-[#b2bbb4]">Notes <span className="font-normal text-[#9aa198]">(optional)</span><textarea maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add context..." className="min-h-[82px] w-full resize-y rounded-md border border-[#ddd9d2] bg-white px-3 py-2 text-sm text-[#28332d] outline-none placeholder:text-[#929990] focus:border-[#81998b] dark:border-[#35423d] dark:bg-[#19221e] dark:text-[#e7eae6]" /></label>
+          <label className="block space-y-1.5 text-xs font-medium text-[#68736b] dark:text-[#b2bbb4]">Notes <span className="font-normal text-[#9aa198]">(optional)</span><textarea maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add context..." className="min-h-20.5 w-full resize-y rounded-md border border-[#ddd9d2] bg-white px-3 py-2 text-sm text-[#28332d] outline-none placeholder:text-[#929990] focus:border-[#81998b] dark:border-[#35423d] dark:bg-[#19221e] dark:text-[#e7eae6]" /></label>
           <div className="flex justify-end gap-2 pt-1"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? "Saving..." : transaction ? "Save changes" : "Add transaction"}</Button></div>
         </form>
       </DialogContent>

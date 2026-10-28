@@ -1,9 +1,9 @@
 import type { FinanceBudget, FinanceTask, FinanceTransaction } from "@/lib/finance-types";
 
-const today = new Date();
+const demoDate = new Date("2026-10-28T12:00:00.000Z");
 const day = (offset: number) => {
-  const date = new Date(today);
-  date.setDate(today.getDate() + offset);
+  const date = new Date(demoDate);
+  date.setDate(demoDate.getDate() + offset);
   return date.toISOString();
 };
 

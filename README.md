@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ledgerly
 
-## Getting Started
+A personal and small-business finance tracker built with the Next.js App Router, TypeScript, Tailwind CSS, Recharts, Prisma, and PostgreSQL.
 
-First, run the development server:
+## Features
+
+- Dashboard totals with weekly, monthly, and yearly summaries, recent activity, six-month income/expense comparison, and spending categories.
+- Transaction creation, editing, deletion, search, and type/category/date-range filters.
+- Monthly category budgets with progress indicators and over-limit warnings.
+- Task board with `TODO`, `IN_PROGRESS`, and `COMPLETED` states, descriptions, and due dates.
+- Email/password authentication, a shared seeded demo account, and session-protected application routes and APIs.
+- Filter-aware transaction CSV export and per-user ETB/USD display formatting.
+- Light/dark theme and responsive desktop/mobile navigation.
+
+## Requirements
+
+- Node.js 20.9 or later.
+- PostgreSQL 14 or later for persistent API storage.
+
+## Setup
+
+1. Install dependencies with `npm install`.
+2. Copy `.env.example` to `.env` and set `DATABASE_URL` to your PostgreSQL database.
+3. Generate a unique `NEXTAUTH_SECRET` (for example with `openssl rand -base64 32`) and set it in `.env`.
+4. Set `DEMO_PASSWORD` and `NEXT_PUBLIC_DEMO_PASSWORD` to the same demo-only password if you want to change the default.
+5. Create the database tables, Prisma client, and demo workspace:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx prisma migrate dev --name init
+npx prisma generate
+npm run db:seed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+6. Start the app using `npm run dev`, then open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The demo login is `demo@ledgerly.com` with the password configured by `DEMO_PASSWORD` (default: `LedgerlyDemo!2026`). This is shared sample data, not a private account. Do not use the demo account for real financial information.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API
 
-## Learn More
+- `GET /api/transactions?start=...&end=...&category=...&type=...`
+- `POST`, `PUT`, and `DELETE /api/transactions`
+- `GET /api/analytics?range=week|month|year`
+- `GET`, `POST`, `PUT`, and `DELETE /api/tasks`
+- `GET`, `POST`, `PUT`, and `DELETE /api/budgets`
+- `GET`, `PUT /api/profile`
+- `POST /api/auth/register`
+- NextAuth handlers at `/api/auth/[...nextauth]`
 
-To learn more about Next.js, take a look at the following resources:
+Request bodies for writes are validated with Zod. `PUT` transaction and task requests include an `id`; deletes use an `id` query parameter. Budget `POST`/`PUT` upsert the monthly limit for a category.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Security and currency
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Finance pages are guarded by middleware, and all finance APIs derive ownership from the authenticated NextAuth session. Use HTTPS, a strong unique `NEXTAUTH_SECRET`, rate limits on registration/sign-in at the hosting edge, and managed PostgreSQL backups for deployment. The demo credentials are intentionally public and must never be treated as secure user credentials.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The ETB/USD selector changes the currency formatting and per-user preference; it does not convert transaction amounts using exchange rates. Values should be entered consistently in the selected currency.

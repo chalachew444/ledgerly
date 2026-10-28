@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getFinanceUser } from "@/lib/server-user";
+import { getFinanceUserId } from "@/lib/server-user";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1).max(140),
@@ -14,10 +14,12 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  void request.url;
   try {
-    const user = await getFinanceUser();
-    const tasks = await prisma.task.findMany({ where: { userId: user.id }, orderBy: [{ createdAt: "desc" }] });
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
+    const tasks = await prisma.task.findMany({ where: { userId }, orderBy: [{ createdAt: "desc" }] });
     return NextResponse.json(tasks.map((task) => ({ ...task, dueDate: task.dueDate?.toISOString() ?? null })));
   } catch (error) {
     console.error("GET /api/tasks failed", error);
@@ -32,11 +34,12 @@ async function saveTask(request: Request, update: boolean) {
   const parsed = taskSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid task.", details: parsed.error.flatten() }, { status: 400 });
   try {
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
     const data = { ...parsed.data, description: parsed.data.description || null };
     const task = update
-      ? await prisma.task.update({ where: { id, userId: user.id }, data })
-      : await prisma.task.create({ data: { ...data, userId: user.id } });
+      ? await prisma.task.update({ where: { id, userId }, data })
+      : await prisma.task.create({ data: { ...data, userId } });
     return NextResponse.json({ ...task, dueDate: task.dueDate?.toISOString() ?? null }, { status: update ? 200 : 201 });
   } catch (error) {
     console.error(`${update ? "PUT" : "POST"} /api/tasks failed`, error);
@@ -56,8 +59,9 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return errorResponse("Task id is required.");
   try {
-    const user = await getFinanceUser();
-    const result = await prisma.task.deleteMany({ where: { id, userId: user.id } });
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
+    const result = await prisma.task.deleteMany({ where: { id, userId } });
     if (!result.count) return errorResponse("Task not found.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {

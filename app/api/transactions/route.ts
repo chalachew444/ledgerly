@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getFinanceUser } from "@/lib/server-user";
+import { getFinanceUserId } from "@/lib/server-user";
 
 const transactionSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -32,15 +32,16 @@ function serialize(transaction: { id: string; title: string; amount: unknown; ty
 }
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const filters = querySchema.safeParse(Object.fromEntries(url.searchParams));
+  if (!filters.success) return jsonError("Invalid transaction filters.");
   try {
-    const url = new URL(request.url);
-    const filters = querySchema.safeParse(Object.fromEntries(url.searchParams));
-    if (!filters.success) return jsonError("Invalid transaction filters.");
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return jsonError("Authentication required.", 401);
     const { start, end, category, type } = filters.data;
     const transactions = await prisma.transaction.findMany({
       where: {
-        userId: user.id,
+        userId,
         ...(start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
         ...(category ? { category: { name: category } } : {}),
         ...(type ? { type } : {}),
@@ -63,12 +64,13 @@ async function saveTransaction(request: Request, update: boolean) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid transaction.", details: parsed.error.flatten() }, { status: 400 });
 
   try {
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return jsonError("Authentication required.", 401);
     const values = parsed.data;
     const category = await prisma.category.upsert({
-      where: { userId_name: { userId: user.id, name: values.category } },
+      where: { userId_name: { userId, name: values.category } },
       update: { type: values.type, color: categoryColor(values.category) },
-      create: { userId: user.id, name: values.category, type: values.type, color: categoryColor(values.category) },
+      create: { userId, name: values.category, type: values.type, color: categoryColor(values.category) },
     });
     const data = {
       title: values.title,
@@ -80,12 +82,12 @@ async function saveTransaction(request: Request, update: boolean) {
     };
     const transaction = update
       ? await prisma.transaction.update({
-          where: { id, userId: user.id },
+          where: { id, userId },
           data,
           include: { category: { select: { id: true, name: true, color: true } } },
         })
       : await prisma.transaction.create({
-          data: { ...data, userId: user.id },
+          data: { ...data, userId },
           include: { category: { select: { id: true, name: true, color: true } } },
         });
     return NextResponse.json(serialize(transaction), { status: update ? 200 : 201 });
@@ -107,8 +109,9 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return jsonError("Transaction id is required.");
   try {
-    const user = await getFinanceUser();
-    const result = await prisma.transaction.deleteMany({ where: { id, userId: user.id } });
+    const userId = await getFinanceUserId();
+    if (!userId) return jsonError("Authentication required.", 401);
+    const result = await prisma.transaction.deleteMany({ where: { id, userId } });
     if (!result.count) return jsonError("Transaction not found.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {

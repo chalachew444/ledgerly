@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getFinanceUser } from "@/lib/server-user";
+import { getFinanceUserId } from "@/lib/server-user";
 
 const budgetSchema = z.object({
   category: z.string().trim().min(1).max(60),
@@ -13,11 +13,13 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  void request.url;
   try {
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
     const budgets = await prisma.budget.findMany({
-      where: { userId: user.id },
+      where: { userId },
       include: { category: { select: { id: true, name: true, color: true } } },
       orderBy: { category: { name: "asc" } },
     });
@@ -33,17 +35,18 @@ async function saveBudget(request: Request) {
   const parsed = budgetSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid budget.", details: parsed.error.flatten() }, { status: 400 });
   try {
-    const user = await getFinanceUser();
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
     const { category: categoryName, ...values } = parsed.data;
     const category = await prisma.category.upsert({
-      where: { userId_name: { userId: user.id, name: categoryName } },
+      where: { userId_name: { userId, name: categoryName } },
       update: { type: "EXPENSE" },
-      create: { userId: user.id, name: categoryName, type: "EXPENSE" },
+      create: { userId, name: categoryName, type: "EXPENSE" },
     });
     const budget = await prisma.budget.upsert({
-      where: { userId_categoryId_period: { userId: user.id, categoryId: category.id, period: values.period } },
+      where: { userId_categoryId_period: { userId, categoryId: category.id, period: values.period } },
       update: { amount: values.amount },
-      create: { ...values, userId: user.id, categoryId: category.id },
+      create: { ...values, userId, categoryId: category.id },
       include: { category: { select: { id: true, name: true, color: true } } },
     });
     return NextResponse.json({ ...budget, amount: Number(budget.amount) });
@@ -65,8 +68,9 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return errorResponse("Budget id is required.");
   try {
-    const user = await getFinanceUser();
-    const result = await prisma.budget.deleteMany({ where: { id, userId: user.id } });
+    const userId = await getFinanceUserId();
+    if (!userId) return errorResponse("Authentication required.", 401);
+    const result = await prisma.budget.deleteMany({ where: { id, userId } });
     if (!result.count) return errorResponse("Budget not found.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
