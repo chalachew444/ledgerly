@@ -2,13 +2,14 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/lib/utils";
+import type { CurrencyCode } from "@/lib/finance-types";
 
 type MonthlyPoint = { month: string; income: number; expense: number };
 type CategoryPoint = { name: string; value: number; color: string };
 
 const axisColor = "#8b948b";
 
-export function MonthlyChart({ data, currency }: { data: MonthlyPoint[]; currency: "ETB" | "USD" }) {
+export function MonthlyChart({ data, currency }: { data: MonthlyPoint[]; currency: CurrencyCode }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -18 }} barGap={5}>
@@ -23,7 +24,7 @@ export function MonthlyChart({ data, currency }: { data: MonthlyPoint[]; currenc
   );
 }
 
-export function CategoryChart({ data, currency }: { data: CategoryPoint[]; currency: "ETB" | "USD" }) {
+export function CategoryChart({ data, currency }: { data: CategoryPoint[]; currency: CurrencyCode }) {
   if (!data.length) return <div className="grid h-full place-items-center text-xs text-[#8b948b]">No expenses in this period</div>;
   return (
     <ResponsiveContainer width="100%" height="100%">

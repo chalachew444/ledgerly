@@ -12,6 +12,17 @@ enum TransactionType {
   EXPENSE
 }
 
+enum TransactionFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+enum InvoiceStatus {
+  PAID
+  PENDING
+  OVERDUE
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -25,39 +36,49 @@ enum CategoryType {
 }
 
 model User {
-  id              String        @id @default(cuid())
-  email           String        @unique
-  name            String?
-  emailVerified   DateTime?
-  image           String?
-  passwordHash    String?
-  currency        String        @default("ETB")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  accounts        Account[]
-  sessions        Session[]
-  transactions    Transaction[]
-  categories      Category[]
-  budgets         Budget[]
-  tasks           Task[]
+  id            String            @id @default(cuid())
+  email         String            @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  currency      String            @default("ETB")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  transactions  Transaction[]
+  categories    Category[]
+  budgets       Budget[]
+  tasks         Task[]
+  clients       Client[]
+  invoices      Invoice[]
+  transfers     AccountTransfer[]
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String            @id @default(cuid())
   userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  type              String?
+  provider          String?
+  providerAccountId String?
+  name              String?
+  currency          String?           @default("ETB")
+  openingBalance    Decimal?          @default(0) @db.Decimal(12, 2)
+  refresh_token     String?           @db.Text
+  access_token      String?           @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?           @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]
+  sentTransfers     AccountTransfer[] @relation("TransferSource")
+  receivedTransfers AccountTransfer[] @relation("TransferDestination")
 
   @@unique([provider, providerAccountId])
+  @@unique([userId, name])
   @@index([userId])
 }
 
@@ -95,26 +116,85 @@ model Category {
 }
 
 model Transaction {
-  id          String          @id @default(cuid())
+  id          String               @id @default(cuid())
   title       String
-  amount      Decimal         @db.Decimal(12, 2)
+  amount      Decimal              @db.Decimal(12, 2)
   type        TransactionType
+  isRecurring Boolean              @default(false)
+  frequency   TransactionFrequency @default(MONTHLY)
   date        DateTime
   notes       String?
   userId      String
   categoryId  String
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  accountId   String?
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  account     Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   @@index([userId, date])
   @@index([userId, categoryId])
+  @@index([accountId])
+}
+
+model AccountTransfer {
+  id                   String   @id @default(cuid())
+  userId               String
+  sourceAccountId      String
+  destinationAccountId String
+  sourceAmount         Decimal  @db.Decimal(12, 2)
+  destinationAmount    Decimal  @db.Decimal(12, 2)
+  exchangeRate         Decimal  @db.Decimal(18, 8)
+  createdAt            DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceAccount        Account  @relation("TransferSource", fields: [sourceAccountId], references: [id], onDelete: Restrict)
+  destinationAccount   Account  @relation("TransferDestination", fields: [destinationAccountId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  company   String?
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, name])
+  @@index([userId, email])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String
+  clientName    String
+  lineItems     Json          @db.JsonB
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  currency      String        @default("ETB")
+  status        InvoiceStatus @default(PENDING)
+  dueDate       DateTime
+  userId        String
+  clientId      String?
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, invoiceNumber])
+  @@index([userId, status, dueDate])
 }
 
 model Budget {
   id         String   @id @default(cuid())
   amount     Decimal  @db.Decimal(12, 2)
+  currency   String   @default("ETB")
   period     String   @default("MONTHLY")
   userId     String
   categoryId String

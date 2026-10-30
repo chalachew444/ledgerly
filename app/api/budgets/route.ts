@@ -6,6 +6,7 @@ import { getFinanceUserId } from "@/lib/server-user";
 const budgetSchema = z.object({
   category: z.string().trim().min(1).max(60),
   amount: z.coerce.number().positive().finite(),
+  currency: z.enum(["ETB", "USD", "EUR"]).default("ETB"),
   period: z.enum(["MONTHLY", "WEEKLY", "YEARLY"]).default("MONTHLY"),
 });
 
@@ -45,7 +46,7 @@ async function saveBudget(request: Request) {
     });
     const budget = await prisma.budget.upsert({
       where: { userId_categoryId_period: { userId, categoryId: category.id, period: values.period } },
-      update: { amount: values.amount },
+      update: { amount: values.amount, currency: values.currency },
       create: { ...values, userId, categoryId: category.id },
       include: { category: { select: { id: true, name: true, color: true } } },
     });

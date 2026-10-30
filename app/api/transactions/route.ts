@@ -7,7 +7,10 @@ const transactionSchema = z.object({
   title: z.string().trim().min(1).max(120),
   amount: z.coerce.number().positive().finite(),
   type: z.enum(["INCOME", "EXPENSE"]),
+  isRecurring: z.boolean().default(false),
+  frequency: z.enum(["WEEKLY", "MONTHLY"]).default("MONTHLY"),
   category: z.string().trim().min(1).max(60),
+  accountId: z.string().min(1),
   date: z.coerce.date(),
   notes: z.string().trim().max(1000).optional().nullable(),
 });
@@ -23,7 +26,7 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function serialize(transaction: { id: string; title: string; amount: unknown; type: string; date: Date; notes: string | null; category: { id: string; name: string; color: string } }) {
+function serialize(transaction: { id: string; title: string; amount: unknown; type: string; isRecurring: boolean; frequency: string; date: Date; notes: string | null; accountId: string | null; category: { id: string; name: string; color: string }; account: { id: string; name: string | null; currency: string | null } | null }) {
   return {
     ...transaction,
     amount: Number(transaction.amount),
@@ -46,7 +49,10 @@ export async function GET(request: Request) {
         ...(category ? { category: { name: category } } : {}),
         ...(type ? { type } : {}),
       },
-      include: { category: { select: { id: true, name: true, color: true } } },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        account: { select: { id: true, name: true, currency: true } },
+      },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(transactions.map(serialize));
@@ -67,6 +73,11 @@ async function saveTransaction(request: Request, update: boolean) {
     const userId = await getFinanceUserId();
     if (!userId) return jsonError("Authentication required.", 401);
     const values = parsed.data;
+    const account = await prisma.account.findFirst({
+      where: { id: values.accountId, userId, name: { not: null } },
+      select: { id: true },
+    });
+    if (!account) return jsonError("Selected wallet not found.", 404);
     const category = await prisma.category.upsert({
       where: { userId_name: { userId, name: values.category } },
       update: { type: values.type, color: categoryColor(values.category) },
@@ -76,19 +87,28 @@ async function saveTransaction(request: Request, update: boolean) {
       title: values.title,
       amount: values.amount,
       type: values.type,
+      isRecurring: values.isRecurring,
+      frequency: values.frequency,
       date: values.date,
       notes: values.notes || null,
       categoryId: category.id,
+      accountId: account.id,
     };
     const transaction = update
       ? await prisma.transaction.update({
           where: { id, userId },
           data,
-          include: { category: { select: { id: true, name: true, color: true } } },
+          include: {
+            category: { select: { id: true, name: true, color: true } },
+            account: { select: { id: true, name: true, currency: true } },
+          },
         })
       : await prisma.transaction.create({
           data: { ...data, userId },
-          include: { category: { select: { id: true, name: true, color: true } } },
+          include: {
+            category: { select: { id: true, name: true, color: true } },
+            account: { select: { id: true, name: true, currency: true } },
+          },
         });
     return NextResponse.json(serialize(transaction), { status: update ? 200 : 201 });
   } catch (error) {

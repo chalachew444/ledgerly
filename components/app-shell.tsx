@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { ArrowDownUp, CircleHelp, LayoutDashboard, ListTodo, LogOut, Settings2, WalletCards } from "lucide-react";
+import { ArrowDownUp, ChartNoAxesCombined, CircleHelp, FileText, LayoutDashboard, ListTodo, LogOut, Settings2, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCurrency } from "@/lib/currency-context";
@@ -11,6 +11,9 @@ import { useCurrency } from "@/lib/currency-context";
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: ArrowDownUp },
+  { href: "/accounts", label: "Accounts", icon: WalletCards },
+  { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/insights", label: "Insights", icon: ChartNoAxesCombined },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
 ];
 
@@ -52,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Settings2 className="size-3.5 text-[#8c968d]" />
             </div>
             <p className="text-sm font-medium">Personal & business</p>
-            <p className="mt-1 text-xs text-[#8b948b]">All accounts · ETB</p>
+            <p className="mt-1 text-xs text-[#8b948b]">All accounts · {currency}</p>
           </div>
           <div className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-[#7b857c] dark:text-[#aeb9b1]"><CircleHelp className="size-4" /> {session?.user?.email ?? "Signed-in workspace"}</div>
           <button onClick={() => void signOut({ callbackUrl: "/login" })} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs text-[#7b857c] hover:bg-[#f1f0eb] dark:text-[#aeb9b1] dark:hover:bg-[#25312a]"><LogOut className="size-4" /> Sign out</button>
@@ -69,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex h-8 items-center gap-1.5 rounded-md border border-[#e1e2d9] bg-[#fbfaf7] px-2 text-[10px] text-[#758078] dark:border-[#344139] dark:bg-[#1b2520] dark:text-[#b3bdb5]">Currency<select aria-label="Display currency" value={currency} onChange={(event) => setCurrency(event.target.value as "ETB" | "USD")} className="bg-transparent text-[11px] font-semibold text-[#36443b] outline-none dark:text-[#d9e0da]"><option value="ETB">ETB</option><option value="USD">USD</option></select></label>
+            <label className="flex h-8 items-center gap-1.5 rounded-md border border-[#e1e2d9] bg-[#fbfaf7] px-2 text-[10px] text-[#758078] dark:border-[#344139] dark:bg-[#1b2520] dark:text-[#b3bdb5]">Currency<select aria-label="Display currency" value={currency} onChange={(event) => setCurrency(event.target.value as "ETB" | "USD" | "EUR")} className="bg-transparent text-[11px] font-semibold text-[#36443b] outline-none dark:text-[#d9e0da]"><option value="ETB">ETB</option><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
             <ThemeToggle />
             <button onClick={() => void signOut({ callbackUrl: "/login" })} aria-label="Sign out" title="Sign out" className="grid size-8 place-items-center rounded text-[#758078] hover:bg-[#f1f0eb] dark:text-[#b3bdb5] dark:hover:bg-[#25312a] lg:hidden"><LogOut className="size-4" /></button>
             <div title={displayName} className="ml-1 grid size-8 place-items-center rounded-full bg-[#e6d8c8] text-[11px] font-semibold text-[#6e5340] dark:bg-[#51463a] dark:text-[#efdfca]">{initials}</div>

@@ -1,26 +1,33 @@
 "use client";
 
-import { createContext, startTransition, useContext, useEffect, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import type { CurrencyCode } from "@/lib/finance-types";
 
-export type Currency = "ETB" | "USD";
+export type Currency = CurrencyCode;
+type ExchangeRates = { base: "USD"; asOf: string; rates: Record<Currency, number> };
 
 interface CurrencyContextValue {
   currency: Currency;
   setCurrency: (currency: Currency) => void;
+  rates: ExchangeRates | null;
+  ratesUpdatedAt: string | null;
+  convertAmount: (amount: number, from: Currency, to?: Currency) => number | null;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 const currencyStorageKey = "ledgerly-currency-v1";
+const exchangeRatesStorageKey = "ledgerly-exchange-rates-v1";
 const databaseEnabled = process.env.NEXT_PUBLIC_DATABASE_ENABLED === "true";
 
 function parseCurrency(value: unknown): Currency | null {
-  return value === "ETB" || value === "USD" ? value : null;
+  return value === "ETB" || value === "USD" || value === "EUR" ? value : null;
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const [currency, setCurrencyState] = useState<Currency>("ETB");
+  const [rates, setRates] = useState<ExchangeRates | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +48,28 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         // The local currency preference remains available when the API is offline.
       }
     }
+    async function loadRates() {
+      try {
+        const response = await fetch("/api/exchange-rates", { cache: "no-store" });
+        if (!response.ok) throw new Error("Exchange rates unavailable");
+        const nextRates = await response.json() as ExchangeRates;
+        if (active) {
+          setRates(nextRates);
+          window.localStorage.setItem(exchangeRatesStorageKey, JSON.stringify(nextRates));
+        }
+      } catch {
+        const storedRates = window.localStorage.getItem(exchangeRatesStorageKey);
+        if (!storedRates) return;
+        try {
+          const parsed = JSON.parse(storedRates) as ExchangeRates;
+          if (active && parsed.base === "USD" && parsed.rates.USD === 1 && parsed.rates.ETB > 0 && parsed.rates.EUR > 0) setRates(parsed);
+        } catch {
+          window.localStorage.removeItem(exchangeRatesStorageKey);
+        }
+      }
+    }
     void loadCurrency();
+    void loadRates();
     return () => { active = false; };
   }, [status]);
 
@@ -57,7 +85,13 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  return <CurrencyContext.Provider value={{ currency, setCurrency }}>{children}</CurrencyContext.Provider>;
+  const convertAmount = useCallback((amount: number, from: Currency, to = currency) => {
+    if (from === to) return amount;
+    if (!rates) return null;
+    return amount / rates.rates[from] * rates.rates[to];
+  }, [currency, rates]);
+
+  return <CurrencyContext.Provider value={{ currency, setCurrency, rates, ratesUpdatedAt: rates?.asOf ?? null, convertAmount }}>{children}</CurrencyContext.Provider>;
 }
 
 export function useCurrency() {

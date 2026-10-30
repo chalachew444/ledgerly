@@ -33,3 +33,36 @@ button, input, select, textarea {
   background: #dce7dc;
   color: #26352e;
 }
+
+.print-document {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 18mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-document.is-active,
+  .print-document.is-active * {
+    visibility: visible;
+  }
+
+  .print-document.is-active {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    padding: 0;
+    color: #111;
+    background: white;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

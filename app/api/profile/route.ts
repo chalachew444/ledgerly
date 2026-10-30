@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getFinanceUserId } from "@/lib/server-user";
 
-const profileSchema = z.object({ currency: z.enum(["ETB", "USD"]) });
+const profileSchema = z.object({ currency: z.enum(["ETB", "USD", "EUR"]) });
 
 export async function GET() {
   const userId = await getFinanceUserId();
@@ -23,7 +23,7 @@ export async function PUT(request: Request) {
   if (!userId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const body = await request.json().catch(() => null);
   const parsed = profileSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Currency must be ETB or USD." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Currency must be ETB, USD, or EUR." }, { status: 400 });
   try {
     const user = await prisma.user.update({ where: { id: userId }, data: { currency: parsed.data.currency }, select: { currency: true } });
     return NextResponse.json(user);
